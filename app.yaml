@@ -1,0 +1,10 @@
+application: janey-robot
+version: 2
+runtime: python
+api_version: 1
+
+handlers:
+- url: /_wave/.*
+  script: janey-robot.py
+- url: /assets
+  static_dir: assets
