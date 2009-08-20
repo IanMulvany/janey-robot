@@ -79,20 +79,32 @@ def GetArticleInfo(soup):
     return return_results
 
 def GetAuthorInfo(soup):
-    authors = soup.findAll('author')
+
+    tags = [tag for tag in soup.results.findAll(recursive=False)]
+    author_metric = tags[0::3]
+    author_names = tags[1::3]
+    author_evidence = tags[2::3]
+    
+    #print author_metric
+    
+    #print author_names
+    #print author_evidence
+    
     return_results = []
-    for author in authors:
-        name = author.author.contents[0]
-        rank = author['rank']
-        score = author['score']
+    for metric, name, evidence in zip (author_metric, author_names, author_evidence):
+        #print metric, name, evidence
         
-        author_articles = GetArticleInfo(author.evidence)
-        
+        rank = metric['rank']
+        score = metric['score']
+        name = name.contents[0]
+        author_articles = GetArticleInfo(evidence)
+        evidence = evidence
+         
         au = authorInfo(name)
         au.score = int(score) # read as str, convert to int for sorting
         au.rank = int(rank) # read as str, convert to int for sorting
         au.articles = author_articles
-        
+         
         return_results.append(au)
     return return_results
 
@@ -136,17 +148,29 @@ def formatArticleResults(Results):
         text = text + article.pmid + "(" + pubmed_link + ")\n"
     
     text = text + "\ntop 5 articles by rank: \n"
-    for journal in top_5_by_rank:
+    for article in top_5_by_rank:
         text = text + article.title + " " + str(article.rank) + "\n"
         pubmed_link = genPubMedLinkFromPMID(article.pmid)
         text = text + article.pmid + "(" + pubmed_link + ")\n"                    
     return text
 
 def formatAuthorResults(Results):
-    top_5_by_rank = Results.sort(sort_results_by_rank)[0:5]
-    top_5_by_score = Results.sort(sort_results_by_score)[0:5]
 
-    return "nothing to see here, move along now"
+    Results.sort(sort_results_by_rank)
+    top_5_by_rank = Results[0:5]
+    Results.sort(sort_results_by_score)
+    top_5_by_score = Results[0:5]
+
+    text = "top 5 authors by score: "
+    for author in top_5_by_score:
+        text = text + author.name + " " +  str(author.score) + "\n"
+    
+    text = text + "\ntop 5 authors by rank: \n"
+    for author in top_5_by_rank:
+        text = text + author.name + " " + str(author.rank) + "\n"
+    
+    return text
+
 
 def QueryJaneAPI(command, query_text):
     """
@@ -170,6 +194,7 @@ def QueryJaneAPI(command, query_text):
     jane_root_url = 'http://biosemantics.org:8080/jane/'
     encoded_query_text = urllib.quote(query_text.rstrip().lstrip())
     query_url = jane_root_url + command + "?text=" + encoded_query_text
+    print query_url
 
     try:
         html = urllib.urlopen(query_url)
@@ -203,7 +228,7 @@ def process_query(command,query_text):
         
 query_text = "zebra fish cancer"
 # commands = ["journals","authors","articles"]
-commands = ["articles"]
+commands = ["authors"]
 
 for command in commands:
     print command
