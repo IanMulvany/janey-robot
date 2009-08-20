@@ -1,1 +1,3 @@
-BeautifulSoup.*
+.gitignore
+test*
+network*
