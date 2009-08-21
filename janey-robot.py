@@ -68,7 +68,7 @@ class articleInfo:
         self.score = 0
         
         
-def sort_results_by_rank(i,j):
+def sort_results_by_rank(i, j):
     """
     All root objects returned in the jane xml tree have a rank
     and score attribute, this is a custom sort on rank.
@@ -82,7 +82,7 @@ def sort_results_by_rank(i,j):
         return -1
 
 
-def sort_results_by_score(i,j):
+def sort_results_by_score(i, j):
     """
     All root objects returned in the jane xml tree have a rank
     and score attribute, this is a custom sort on score
@@ -101,11 +101,11 @@ def genPubMedLinkFromPMID(pmid):
 
 
 def GetJournalInfo(soup):
-	"""
-	Parses the returned xml from JANE and extracts some information about
-	journals.
-	
-	"""
+    """
+    Parses the returned xml from JANE and extracts some information about
+    journals.
+    
+    """
     journals = soup.findAll('journal')
     return_results = []
     for journal in journals:
@@ -120,11 +120,11 @@ def GetJournalInfo(soup):
 
 
 def GetArticleInfo(soup):
-	"""
-	Parses the returned xml from JANE and extracts some information about
-	articles.
-	
-	"""
+    """
+    Parses the returned xml from JANE and extracts some information about
+    articles.
+    
+    """
     articles = soup.findAll('article')
     return_results = []
     for article in articles:
@@ -143,15 +143,15 @@ def GetArticleInfo(soup):
 
 
 def GetAuthorInfo(soup):
-	"""
-	Parses the returned xml from JANE and extracts some information about
-	authors.
-	
-	The author nodes are non-trivial, each author includes an evidence node, inside
-	of which tere are article nodes, indide of which there are author nodes, but 
-	only author nodes containing author names.
-	
-	"""
+    """
+    Parses the returned xml from JANE and extracts some information about
+    authors.
+    
+    The author nodes are non-trivial, each author includes an evidence node, inside
+    of which tere are article nodes, indide of which there are author nodes, but 
+    only author nodes containing author names.
+    
+    """
     tags = [tag for tag in soup.results.findAll(recursive=False)]
     author_metric = tags[0::3]
     author_names = tags[1::3]
@@ -175,10 +175,10 @@ def GetAuthorInfo(soup):
 def formatJournalResults(journal_results):
     """
     Take the rank and score and format for printing.
-	Picking the top 5 is arbitrary. If less than 5 results are 
-	returned by the API this module will break.
-	
-	TODO: factor out the number of results that are returned.
+    Picking the top 5 is arbitrary. If less than 5 results are 
+    returned by the API this module will break.
+    
+    TODO: factor out the number of results that are returned.
 
     """
     journal_results.sort(sort_results_by_rank)
@@ -199,10 +199,10 @@ def formatJournalResults(journal_results):
 def formatArticleResults(Results):
     """
     Take the rank and score and format for printing.
-	Picking the top 5 is arbitrary. If less than 5 results are 
-	returned by the API this module will break.
-	
-	TODO: factor out the number of results that are returned.
+    Picking the top 5 is arbitrary. If less than 5 results are 
+    returned by the API this module will break.
+    
+    TODO: factor out the number of results that are returned.
 
     """    
     Results.sort(sort_results_by_rank)
@@ -227,10 +227,10 @@ def formatArticleResults(Results):
 def formatAuthorResults(Results):
     """
     Take the rank and score and format for printing.
-	Picking the top 5 is arbitrary. If less than 5 results are 
-	returned by the API this module will break.
-	
-	TODO: factor out the number of results that are returned.
+    Picking the top 5 is arbitrary. If less than 5 results are 
+    returned by the API this module will break.
+    
+    TODO: factor out the number of results that are returned.
 
     """
     Results.sort(sort_results_by_rank)
@@ -372,12 +372,12 @@ def OnBlipSubmitted(properties, context):
     blip_text_view = blip.GetDocument()
     blip_text = blip_text_view.GetText()
     # regex generated using http://txt2re.com/index-python.php3?s=aasfd%20(janey:command)%20aslfkjasf&4&-7&-44&-42&-43
-    re1 = '.*?'	# Non-greedy match on filler
-    re2 = '(\\()'	# Any Single Character 1
-    re3 = '(janey)'	# Word 1
-    re4 = '(:)'	# Any Single Character 2
-    re5 = '((?:[a-z][a-z]+))'	# Word 2
-    re6 = '(\\))'	# Any Single Character 3
+    re1 = '.*?'    # Non-greedy match on filler
+    re2 = '(\\()'    # Any Single Character 1
+    re3 = '(janey)'    # Word 1
+    re4 = '(:)'    # Any Single Character 2
+    re5 = '((?:[a-z][a-z]+))'    # Word 2
+    re6 = '(\\))'    # Any Single Character 3
     rg = re.compile(re1+re2+re3+re4+re5+re6, re.IGNORECASE|re.DOTALL)
     logger.debug('about to search blip text')    
     m = rg.search(blip_text)
