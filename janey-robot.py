@@ -8,14 +8,13 @@ from BeautifulSoup import BeautifulStoneSoup
 logger = logging.getLogger('janey-robot')
 logger.setLevel(logging.DEBUG)
 
-current_version = '2.0'
+current_version = '2.1'
 HELP_MESSAGE = "I query http://www.biosemantics.org/jane/, my commands are:  \
                    (janey:journals) - returns a list of recommended journals\n \
                    (janey:articles) - returns a list of related articles\n \
                    (janey:authors) - returns a list of related authors\n \
                    (janey:about) - gives a little info about me\n \
-                   (janey:help) - prints this message"
-                   
+                   (janey:help) - prints this message"       
 ABOUT_MESSAGE = "I pass the content of the blip I am called from to the \
 Journal Name Author Estimator service, and I put some of the \
 response from that service into a reply blip. \
@@ -33,19 +32,35 @@ For help on my commands type (janey:help)"
 
 
 class journalInfo:
+    """"
+    Models partial journal information.
+
+    """    
     def __init__(self, name):
         self.journalname =  name
         self.rank = 0
         self.score = 0
 
+
 class authorInfo:
+    """"
+    Models partial author information.
+    articles is an empty list, it will store articleInfo class objects,
+    possibly better to inherit this?
+
+    """    
     def __init__(self, name):
         self.name =  name
         self.rank = 0
         self.score = 0
         self.articles = []
 
+
 class articleInfo:
+    """
+    Models partial article information
+
+    """    
     def __init__(self, pmid):
         self.pmid = pmid
         self.title = ""
@@ -55,10 +70,10 @@ class articleInfo:
         
 def sort_results_by_rank(i,j):
     """
-    all root objects returned in the jane xml tree have a rank
-    and score attribute, this is a custom sort on rank
+    All root objects returned in the jane xml tree have a rank
+    and score attribute, this is a custom sort on rank.
+
     """
-    #print "in rank sorting"
     if i.rank > j.rank:
         return 1
     elif j.rank == i.rank:
@@ -66,12 +81,13 @@ def sort_results_by_rank(i,j):
     else: # j.rank > i.rank
         return -1
 
+
 def sort_results_by_score(i,j):
     """
-    all root objects returned in the jane xml tree have a rank
+    All root objects returned in the jane xml tree have a rank
     and score attribute, this is a custom sort on score
-    """
 
+    """
     if i.score > j.score:
         return 1
     elif j.score == i.score:
@@ -79,7 +95,17 @@ def sort_results_by_score(i,j):
     else: # j.rank > i.rank
         return -1
 
+
+def genPubMedLinkFromPMID(pmid):
+    return "http://www.ncbi.nlm.nih.gov/pubmed/" + pmid
+
+
 def GetJournalInfo(soup):
+	"""
+	Parses the returned xml from JANE and extracts some information about
+	journals.
+	
+	"""
     journals = soup.findAll('journal')
     return_results = []
     for journal in journals:
@@ -92,7 +118,13 @@ def GetJournalInfo(soup):
         return_results.append(j)
     return return_results
 
-def GetArticleInfo(soup):    
+
+def GetArticleInfo(soup):
+	"""
+	Parses the returned xml from JANE and extracts some information about
+	articles.
+	
+	"""
     articles = soup.findAll('article')
     return_results = []
     for article in articles:
@@ -109,41 +141,46 @@ def GetArticleInfo(soup):
         return_results.append(a)
     return return_results
 
-def GetAuthorInfo(soup):
 
+def GetAuthorInfo(soup):
+	"""
+	Parses the returned xml from JANE and extracts some information about
+	authors.
+	
+	The author nodes are non-trivial, each author includes an evidence node, inside
+	of which tere are article nodes, indide of which there are author nodes, but 
+	only author nodes containing author names.
+	
+	"""
     tags = [tag for tag in soup.results.findAll(recursive=False)]
     author_metric = tags[0::3]
     author_names = tags[1::3]
     author_evidence = tags[2::3]
     
-    #print author_metric
-    
-    #print author_names
-    #print author_evidence
-    
     return_results = []
     for metric, name, evidence in zip (author_metric, author_names, author_evidence):
-        #print metric, name, evidence
-        
         rank = metric['rank']
         score = metric['score']
         name = name.contents[0]
         author_articles = GetArticleInfo(evidence)
         evidence = evidence
-         
+        # add the info into our article info class object
         au = authorInfo(name)
         au.score = int(score) # read as str, convert to int for sorting
         au.rank = int(rank) # read as str, convert to int for sorting
-        au.articles = author_articles
-         
+        au.articles = author_articles    
         return_results.append(au)
     return return_results
 
 def formatJournalResults(journal_results):
     """
-    take journalname rank and score and format for printing
+    Take the rank and score and format for printing.
+	Picking the top 5 is arbitrary. If less than 5 results are 
+	returned by the API this module will break.
+	
+	TODO: factor out the number of results that are returned.
+
     """
-    
     journal_results.sort(sort_results_by_rank)
     top_5_by_rank = journal_results[0:5]
     journal_results.sort(sort_results_by_score)
@@ -157,16 +194,17 @@ def formatJournalResults(journal_results):
     for journal in top_5_by_rank:
         text = text + journal.journalname + " " + str(journal.rank) + "\n"      
     return text
-    
-def genPubMedLinkFromPMID(pmid):
-    return "http://www.ncbi.nlm.nih.gov/pubmed/" + pmid
+
 
 def formatArticleResults(Results):
     """
-    take article title  rank and score and format for printing
-    include pmid and generate a link to pubmed
-    """
-    
+    Take the rank and score and format for printing.
+	Picking the top 5 is arbitrary. If less than 5 results are 
+	returned by the API this module will break.
+	
+	TODO: factor out the number of results that are returned.
+
+    """    
     Results.sort(sort_results_by_rank)
     top_5_by_rank = Results[0:5]
     Results.sort(sort_results_by_score)
@@ -185,8 +223,16 @@ def formatArticleResults(Results):
         text = text + article.pmid + "(" + pubmed_link + ")\n"                    
     return text
 
-def formatAuthorResults(Results):
 
+def formatAuthorResults(Results):
+    """
+    Take the rank and score and format for printing.
+	Picking the top 5 is arbitrary. If less than 5 results are 
+	returned by the API this module will break.
+	
+	TODO: factor out the number of results that are returned.
+
+    """
     Results.sort(sort_results_by_rank)
     top_5_by_rank = Results[0:5]
     Results.sort(sort_results_by_score)
@@ -225,19 +271,15 @@ def QueryJaneAPI(command, query_text):
     jane_root_url = 'http://biosemantics.org:8080/jane/'
     encoded_query_text = urllib.quote(query_text.rstrip().lstrip())
     query_url = jane_root_url + command + "?text=" + encoded_query_text
-    print query_url
-
     try:
         html = urllib.urlopen(query_url)
         document = html.read()
     except:
-        # add error loggin here
         return "oops, there was a problem calling the JANE service, sorry!"
     try:
         vanilla_doc = document.decode('us-ascii', 'ignore')
         soup = BeautifulStoneSoup(vanilla_doc)
     except:
-        # add error loggin here
         return "oops, I chocked trying to process the returned xml, sorry!"
     
     return_text = ""
@@ -257,11 +299,13 @@ def QueryJaneAPI(command, query_text):
 def OnRobotAdded(properties, context):
     """
     Invoked when the robot has been added.
+
     """
     HELLO_MESSAGE = "Hi, I'm janey-robot, let me help you find journals. For help type (janey:help) \
  I'm version " + current_version
     root_wavelet = context.GetRootWavelet()
     root_wavelet.CreateBlip().GetDocument().SetText(HELLO_MESSAGE)
+
 
 def Notify(context):
     """
@@ -322,11 +366,11 @@ def ReplyToBlipWithJaneInfo(properties, context, blip_text, command):
 def OnBlipSubmitted(properties, context):
     """
     Invoked when a blip has been added.
+
     """
     blip = context.GetBlipById(properties['blipId']) 
     blip_text_view = blip.GetDocument()
     blip_text = blip_text_view.GetText()
-
     # regex generated using http://txt2re.com/index-python.php3?s=aasfd%20(janey:command)%20aslfkjasf&4&-7&-44&-42&-43
     re1 = '.*?'	# Non-greedy match on filler
     re2 = '(\\()'	# Any Single Character 1
@@ -343,6 +387,7 @@ def OnBlipSubmitted(properties, context):
         StripCommandFromBlip(properties, context, blip_text, command)
         ReplyToBlipWithJaneInfo(properties, context, blip_text, command)
         logger.debug('query syntax recognised, command was %s', command)
+
 
 if __name__ == '__main__':
     logger.debug('text: %s' % "running version " + current_version)
