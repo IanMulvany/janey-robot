@@ -8,7 +8,7 @@ from BeautifulSoup import BeautifulStoneSoup
 logger = logging.getLogger('janey-robot')
 logger.setLevel(logging.DEBUG)
 
-current_version = '2.2'
+current_version = '2.2.1'
 HELP_MESSAGE = "I query http://www.biosemantics.org/jane/, my commands are:  \
                    (janey:journals) - returns a list of recommended journals\n \
                    (janey:articles) - returns a list of related articles\n \
@@ -373,11 +373,9 @@ def QueryJaneAPI(command, query_text):
         return_text = formatAuthorResults(author_results)
     elif command == "articles":
         article_results = GetArticleInfo(soup)
-        #return_text = formatArticleResults(article_results)
-        return_text = graphArticleRelationships(article_results)
+        return_text = formatArticleResults(article_results)
     elif command == "graph":
         article_results = GetArticleInfo(soup)
-        #return_text = formatArticleResults(article_results)
         return_text = graphArticleRelationships(article_results)                 
     return return_text
     
