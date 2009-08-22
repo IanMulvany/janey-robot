@@ -1,19 +1,19 @@
-from waveapi import events
-from waveapi import robot
 import re
 import logging
 import urllib
 from BeautifulSoup import BeautifulStoneSoup
+from networkx import *
 
 logger = logging.getLogger('janey-robot')
 logger.setLevel(logging.DEBUG)
 
-current_version = '2.1'
+current_version = '2.2'
 HELP_MESSAGE = "I query http://www.biosemantics.org/jane/, my commands are:  \
                    (janey:journals) - returns a list of recommended journals\n \
                    (janey:articles) - returns a list of related articles\n \
                    (janey:authors) - returns a list of related authors\n \
                    (janey:about) - gives a little info about me\n \
+                   (janey:graph) - mini co-authorship network\n \
                    (janey:help) - prints this message"       
 ABOUT_MESSAGE = "I pass the content of the blip I am called from to the \
 Journal Name Author Estimator service, and I put some of the \
@@ -66,6 +66,8 @@ class articleInfo:
         self.title = ""
         self.rank = 0
         self.score = 0
+        self.year = 0
+        self.authors = []
         
         
 def sort_results_by_rank(i, j):
@@ -95,6 +97,20 @@ def sort_results_by_score(i, j):
     else: # j.rank > i.rank
         return -1
 
+
+def sort_results_by_year(i, j):
+    """
+    Article objects have a year attribute. This is the year that they were published.
+    This custom sort, sorts articles by year, yeahh!
+
+    """
+    if i.year > j.year:
+        return 1
+    elif j.year == i.year:
+        return 0
+    else: # j.rank > i.rank
+        return -1
+        
 
 def genPubMedLinkFromPMID(pmid):
     return "http://www.ncbi.nlm.nih.gov/pubmed/" + pmid
@@ -133,11 +149,16 @@ def GetArticleInfo(soup):
         rank = article['rank']
         score = article['score']
         pmid = article.pmid.contents[0]
+        year = article.year.contents[0]
+        author_tags = article.findAll('author')
+        author_names = [tag.contents[0] for tag in author_tags]
         # add the info into our article info class object
         a = articleInfo(pmid)
         a.score = int(score) # read as str, convert to int for sorting
         a.rank = int(rank) # read as str, convert to int for sorting
         a.title = title
+        a.year = int(year) # read as str, convert to int for sorting
+        a.authors = author_names
         return_results.append(a)
     return return_results
 
@@ -171,6 +192,7 @@ def GetAuthorInfo(soup):
         au.articles = author_articles    
         return_results.append(au)
     return return_results
+
 
 def formatJournalResults(journal_results):
     """
@@ -224,6 +246,39 @@ def formatArticleResults(Results):
     return text
 
 
+def genLink(a, b):
+    return '"' + a.pmid + " " + str(a.year) + '" -> "' + b.pmid + " " + str(b.year) + '"\n'
+    #return a.pmid + " -> " + b.pmid + "\n"
+
+
+def graphArticleRelationships(Results):
+    """
+    Take the rank and score and format for printing.
+    Picking the top 5 is arbitrary. If less than 5 results are 
+    returned by the API this module will break.
+    
+    TODO: factor out the number of results that are returned.
+
+    """    
+    Results.sort(sort_results_by_year)
+    text = "#!dot\n" # required for graph robot
+    targets = Results
+    max_links = 12 # artifical limit to fit in demo window
+    link_num = 0 
+    for a in Results:
+        a_auths = a.authors
+        targets.remove(a) # if a -> b, then b -> a, so don't check twice
+        for b in targets:
+            b_auths = b.authors
+            for a_auth in a_auths:
+                if a_auth in b_auths and link_num < max_links:
+                    edge = genLink(a, b)
+                    text = text + edge
+                    link_num = link_num + 1
+                    break
+    return text
+
+
 def formatAuthorResults(Results):
     """
     Take the rank and score and format for printing.
@@ -249,6 +304,40 @@ def formatAuthorResults(Results):
     return text
 
 
+def generateQueryUrl(command, query_text):
+    """
+    If the command is to graph, then we pull more results in order to find
+    an overlap between authors.
+    
+    """
+    jane_root_url = 'http://biosemantics.org:8080/jane/'
+    encoded_query_text = urllib.quote(query_text.rstrip().lstrip())
+    if command == 'graph':
+        query_url = jane_root_url + "articles?text=" + encoded_query_text
+        query_url = query_url + "&count=100"
+    else:
+        query_url = jane_root_url + command + "?text=" + encoded_query_text
+            
+    print query_url
+    return query_url
+    
+    
+def downloadXMLFromnJane(query_url):
+    """
+    TODO: convert to a POST call rather than a GET call 
+    TODO: create a propoer user agent so JANE recognises the calls as coming from janey
+    TODO: add proper error handling to this botched script
+    
+    """
+    try:
+        html = urllib.urlopen(query_url)
+        document = html.read()
+        vanilla_doc = document.decode('us-ascii', 'ignore')
+        soup = BeautifulStoneSoup(vanilla_doc)
+    except:
+        return FALSE
+    return soup
+
 def QueryJaneAPI(command, query_text):
     """
     uses http GET
@@ -268,19 +357,11 @@ def QueryJaneAPI(command, query_text):
     http://biosemantics.org:8080/jane/journals?text=malaria%20vaccines
 
     """
-    jane_root_url = 'http://biosemantics.org:8080/jane/'
-    encoded_query_text = urllib.quote(query_text.rstrip().lstrip())
-    query_url = jane_root_url + command + "?text=" + encoded_query_text
-    try:
-        html = urllib.urlopen(query_url)
-        document = html.read()
-    except:
-        return "oops, there was a problem calling the JANE service, sorry!"
-    try:
-        vanilla_doc = document.decode('us-ascii', 'ignore')
-        soup = BeautifulStoneSoup(vanilla_doc)
-    except:
-        return "oops, I chocked trying to process the returned xml, sorry!"
+    query_url = generateQueryUrl(command, query_text)
+    soup = downloadXMLFromnJane(query_url)
+    
+    if not soup:
+        return "error in communicating with JANE server"
     
     return_text = ""
     if command == "journals":
@@ -291,110 +372,17 @@ def QueryJaneAPI(command, query_text):
         return_text = formatAuthorResults(author_results)
     elif command == "articles":
         article_results = GetArticleInfo(soup)
-        return_text = formatArticleResults(article_results)
-                 
+        #return_text = formatArticleResults(article_results)
+        return_text = graphArticleRelationships(article_results)
+    elif command == "graph":
+        article_results = GetArticleInfo(soup)
+        #return_text = formatArticleResults(article_results)
+        return_text = graphArticleRelationships(article_results)                 
     return return_text
 
 
-def OnRobotAdded(properties, context):
-    """
-    Invoked when the robot has been added.
 
-    """
-    HELLO_MESSAGE = "Hi, I'm janey-robot, let me help you find journals. For help type (janey:help) \
- I'm version " + current_version
-    root_wavelet = context.GetRootWavelet()
-    root_wavelet.CreateBlip().GetDocument().SetText(HELLO_MESSAGE)
-
-
-def Notify(context):
-    """
-    We will only notify when the robot is added or updated, not 
-    when a new participant is added, this increases clutter in the wave
-       
-    """
-    root_wavelet = context.GetRootWavelet()
-    root_wavelet.CreateBlip().GetDocument().SetText("Hi everybody!")
-
-
-def StripCommandFromBlipText(blipText, command):
-    """
-    returns the blip text with the command text removed
-    this function is also used to return the query string to be passed to JANE
-
-    """
-    replace_string = "(janey:" + command + ")"
-    stripped_text = blipText.replace(replace_string,"")
-    return stripped_text
-
-
-def StripCommandFromBlip(properties, context, blip_text, command):
-    """
-    Take a blip and modify the blip in place
-    Remove the janey command string from the blip
-
-    """
-    logger.debug('stripping the command from the blip')    
-    blip = context.GetBlipById(properties['blipId'])
-    stripped_text = StripCommandFromBlipText(blip_text, command)
-    blip.GetDocument().SetText(stripped_text)
-
-
-def ReplyToBlipWithJaneInfo(properties, context, blip_text, command):
-    """
-    If we recognize the command, send a query to the Jane API
-    If not demur with a polite response
-
-    """
-    if command == 'help':
-        response = HELP_MESSAGE
-    elif command == 'about':
-        response = ABOUT_MESSAGE
-    elif command in ['authors', 'journals', 'articles']:
-        query_text = StripCommandFromBlipText(blip_text, command)
-        logger.debug('about to call JANE API')    
-        query_result = QueryJaneAPI(command, query_text)
-        response = "The " + command + " I would suggest are: \n" + query_result
-    else:
-        response = "Hmm, I'm not sure what you mean, sorry!,\
-         try (janey:help) for a list of commands I understand"
-        
-    blip = context.GetBlipById(properties['blipId']) 
-    blip.CreateChild().GetDocument().SetText(response)
-    
-    
-def OnBlipSubmitted(properties, context):
-    """
-    Invoked when a blip has been added.
-
-    """
-    blip = context.GetBlipById(properties['blipId']) 
-    blip_text_view = blip.GetDocument()
-    blip_text = blip_text_view.GetText()
-    # regex generated using http://txt2re.com/index-python.php3?s=aasfd%20(janey:command)%20aslfkjasf&4&-7&-44&-42&-43
-    re1 = '.*?'    # Non-greedy match on filler
-    re2 = '(\\()'    # Any Single Character 1
-    re3 = '(janey)'    # Word 1
-    re4 = '(:)'    # Any Single Character 2
-    re5 = '((?:[a-z][a-z]+))'    # Word 2
-    re6 = '(\\))'    # Any Single Character 3
-    rg = re.compile(re1+re2+re3+re4+re5+re6, re.IGNORECASE|re.DOTALL)
-    logger.debug('about to search blip text')    
-    m = rg.search(blip_text)
-
-    if m:
-        command = m.group(4)
-        StripCommandFromBlip(properties, context, blip_text, command)
-        ReplyToBlipWithJaneInfo(properties, context, blip_text, command)
-        logger.debug('query syntax recognised, command was %s', command)
-
-
-if __name__ == '__main__':
-    logger.debug('text: %s' % "running version " + current_version)
-    myRobot = robot.Robot('janey-robot', 
-            image_url='http://janey-robot.appspot.com/assets/icon.png',
-            version=current_version,
-            profile_url='http://janey-robot.appspot.com/')
-    myRobot.RegisterHandler(events.WAVELET_SELF_ADDED, OnRobotAdded)
-    myRobot.RegisterHandler(events.BLIP_SUBMITTED, OnBlipSubmitted)
-    myRobot.Run()
+query_text = "H1N1 china mortality"
+command = "graph"
+query_result = QueryJaneAPI(command, query_text)
+print query_result    
