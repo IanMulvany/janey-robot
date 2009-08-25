@@ -1,0 +1,6 @@
+    TODO: format results with annotations
+    TODO: debug issue with first command deleting submission text
+    TODO: factor out the number of results that are returned.
+    TODO: convert to a POST call rather than a GET call 
+    TODO: create a propoer user agent so JANE recognises the calls as coming from janey
+    TODO: add proper error handling to this botched script
