@@ -318,8 +318,7 @@ def generateQueryUrl(command, query_text):
         query_url = query_url + "&count=100"
     else:
         query_url = jane_root_url + command + "?text=" + encoded_query_text
-            
-    print query_url
+
     return query_url
     
     
